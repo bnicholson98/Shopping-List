@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 function App() {
   const [currentList, setCurrentList] = useState([]);
   const [history, setHistory] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [shake, setShake] = useState(false);
+  const inputRef = useRef(null);
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -28,12 +30,17 @@ function App() {
     localStorage.setItem('shoppingHistory', JSON.stringify(history));
   }, [history]);
 
-  const addToList = (item) => {
+  const addToList = React.useCallback((item) => {
     if (item.trim() === '') return;
     
     // Check if item already exists in current list
     const existingInList = currentList.find(i => i.text.toLowerCase() === item.trim().toLowerCase());
-    if (existingInList) return;
+    if (existingInList) {
+      // Trigger shake animation
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
     
     const newItem = {
       id: Date.now(),
@@ -62,17 +69,18 @@ function App() {
     }
     
     setInputValue('');
-  };
+    inputRef.current?.blur();
+  }, [currentList, history]);
 
-  const removeFromList = (id) => {
+  const removeFromList = React.useCallback((id) => {
     setCurrentList(currentList.filter(item => item.id !== id));
-  };
+  }, [currentList]);
 
-  const removeFromHistory = (id) => {
+  const removeFromHistory = React.useCallback((id) => {
     setHistory(history.filter(item => item.id !== id));
-  };
+  }, [history]);
 
-  const addFromHistory = (historyItem) => {
+  const addFromHistory = React.useCallback((historyItem) => {
     // Check if item already exists in current list
     const existingInList = currentList.find(i => i.text.toLowerCase() === historyItem.text.toLowerCase());
     if (existingInList) return;
@@ -91,7 +99,7 @@ function App() {
         ? { ...h, lastUsed: Date.now() }
         : h
     ).sort((a, b) => b.lastUsed - a.lastUsed));
-  };
+  }, [currentList, history]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -107,20 +115,21 @@ function App() {
         </h1>
 
         {/* Current Shopping List */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">          
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 transition-all duration-300 hover:shadow-xl">          
           {currentList.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">We probably need toilet paper</p>
+            <p className="text-gray-400 text-center py-8 animate-pulse">We probably need toilet paper</p>
           ) : (
             <ul className="flex flex-wrap gap-2 mb-4">
-              {currentList.map((item) => (
+              {currentList.map((item, index) => (
                 <li
                   key={item.id}
-                  className="relative bg-indigo-50 rounded-lg px-4 py-3 pr-10 transition-all hover:bg-indigo-100 inline-flex items-center"
+                  className="relative bg-indigo-50 rounded-lg px-4 py-3 pr-10 transition-all duration-200 hover:bg-indigo-100 hover:scale-105 hover:shadow-sm inline-flex items-center animate-slideIn"
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <span className="text-gray-800 text-base whitespace-nowrap">{item.text}</span>
                   <button
                     onClick={() => removeFromList(item.id)}
-                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors text-lg"
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-all duration-200 hover:scale-110 text-lg"
                     aria-label="Remove item"
                   >
                     ×
@@ -132,17 +141,18 @@ function App() {
 
           {/* Add New Item Form */}
           <form onSubmit={handleSubmit} className="mt-4">
-            <div className="relative">
+            <div className={`relative ${shake ? 'animate-shake' : ''}`}>
               <input
+                ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 placeholder="Add new..."
-                className="w-full px-4 py-3 pr-12 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full px-4 py-3 pr-12 border-2 border-indigo-200 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
               />
               <button
                 type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-indigo-600 hover:text-indigo-800 text-2xl font-bold"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-indigo-600 hover:text-indigo-800 hover:scale-110 transition-all duration-200 text-2xl font-bold"
                 aria-label="Add item"
               >
                 +
@@ -152,17 +162,18 @@ function App() {
         </div>
 
         {/* History */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-6 transition-all duration-300 hover:shadow-xl">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">History</h2>
           
           {history.length === 0 ? (
             <p className="text-gray-400 text-center py-8">No history yet</p>
           ) : (
             <ul className="flex flex-wrap gap-2">
-              {history.map((item) => (
+              {history.map((item, index) => (
                 <li
                   key={item.id}
-                  className="relative bg-gray-50 rounded-lg px-4 py-3 pr-10 cursor-pointer transition-all hover:bg-indigo-50 hover:shadow-md inline-flex items-center"
+                  className="relative bg-gray-50 rounded-lg px-4 py-3 pr-10 cursor-pointer transition-all duration-200 hover:bg-indigo-50 hover:shadow-md hover:scale-105 inline-flex items-center animate-slideIn"
+                  style={{ animationDelay: `${index * 50}ms` }}
                   onClick={() => addFromHistory(item)}
                 >
                   <span className="text-gray-700 text-base whitespace-nowrap">{item.text}</span>
@@ -171,7 +182,7 @@ function App() {
                       e.stopPropagation();
                       removeFromHistory(item.id);
                     }}
-                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors text-lg"
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-all duration-200 hover:scale-110 text-lg"
                     aria-label="Remove from history"
                   >
                     ×
