@@ -111,16 +111,16 @@ function App() {
           {currentList.length === 0 ? (
             <p className="text-gray-400 text-center py-8">We probably need toilet paper</p>
           ) : (
-            <ul className="space-y-2 mb-4">
+            <ul className="flex flex-wrap gap-2 mb-4">
               {currentList.map((item) => (
                 <li
                   key={item.id}
-                  className="relative bg-indigo-50 rounded-lg p-4 pr-12 transition-all hover:bg-indigo-100"
+                  className="relative bg-indigo-50 rounded-lg px-4 py-3 pr-10 transition-all hover:bg-indigo-100 inline-flex items-center"
                 >
-                  <span className="text-gray-800">{item.text}</span>
+                  <span className="text-gray-800 text-base whitespace-nowrap">{item.text}</span>
                   <button
                     onClick={() => removeFromList(item.id)}
-                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors"
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors text-lg"
                     aria-label="Remove item"
                   >
                     ×
@@ -158,20 +158,20 @@ function App() {
           {history.length === 0 ? (
             <p className="text-gray-400 text-center py-8">No history yet</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="flex flex-wrap gap-2">
               {history.map((item) => (
                 <li
                   key={item.id}
-                  className="relative bg-gray-50 rounded-lg p-4 pr-12 cursor-pointer transition-all hover:bg-indigo-50 hover:shadow-md"
+                  className="relative bg-gray-50 rounded-lg px-4 py-3 pr-10 cursor-pointer transition-all hover:bg-indigo-50 hover:shadow-md inline-flex items-center"
                   onClick={() => addFromHistory(item)}
                 >
-                  <span className="text-gray-700">{item.text}</span>
+                  <span className="text-gray-700 text-base whitespace-nowrap">{item.text}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       removeFromHistory(item.id);
                     }}
-                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors"
+                    className="absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition-colors text-lg"
                     aria-label="Remove from history"
                   >
                     ×
