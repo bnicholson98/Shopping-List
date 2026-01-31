@@ -1,4 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  deleteDoc,
+  doc,
+  updateDoc,
+  query,
+  orderBy
+} from "firebase/firestore";
+import { db } from "./firebase";
+import { getAuth, signInAnonymously } from "firebase/auth";
+
 
 function App() {
   const [currentList, setCurrentList] = useState([]);
@@ -7,99 +20,108 @@ function App() {
   const [shake, setShake] = useState(false);
   const inputRef = useRef(null);
 
-  // Load data from localStorage on mount
   useEffect(() => {
-    const savedList = localStorage.getItem('shoppingList');
-    const savedHistory = localStorage.getItem('shoppingHistory');
-    
-    if (savedList) {
-      setCurrentList(JSON.parse(savedList));
-    }
-    if (savedHistory) {
-      setHistory(JSON.parse(savedHistory));
-    }
+    const auth = getAuth();
+    signInAnonymously(auth).catch(console.error);
   }, []);
 
-  // Save current list to localStorage
   useEffect(() => {
-    localStorage.setItem('shoppingList', JSON.stringify(currentList));
-  }, [currentList]);
+    const listQuery = query(
+      collection(db, "currentList"),
+      orderBy("addedAt", "asc")
+    );
 
-  // Save history to localStorage
-  useEffect(() => {
-    localStorage.setItem('shoppingHistory', JSON.stringify(history));
-  }, [history]);
+    const historyQuery = query(
+      collection(db, "history"),
+      orderBy("lastUsed", "desc")
+    );
 
-  const addToList = React.useCallback((item) => {
+    const unsubList = onSnapshot(listQuery, (snapshot) => {
+      setCurrentList(
+        snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+      );
+    });
+
+    const unsubHistory = onSnapshot(historyQuery, (snapshot) => {
+      setHistory(
+        snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }))
+      );
+    });
+
+    return () => {
+      unsubList();
+      unsubHistory();
+    };
+  }, []);
+
+  const addToList = React.useCallback(async (item) => {
     if (item.trim() === '') return;
-    
-    // Check if item already exists in current list
-    const existingInList = currentList.find(i => i.text.toLowerCase() === item.trim().toLowerCase());
+
+    const normalized = item.trim().toLowerCase();
+
+    const existingInList = currentList.find(
+      i => i.text.toLowerCase() === normalized
+    );
+
     if (existingInList) {
-      // Trigger shake animation
       setShake(true);
       setTimeout(() => setShake(false), 500);
       return;
     }
-    
-    const newItem = {
-      id: Date.now(),
+
+    await addDoc(collection(db, "currentList"), {
       text: item.trim(),
       addedAt: Date.now()
-    };
-    
-    setCurrentList([...currentList, newItem]);
-    
-    // Add to history if not already there
-    const existingHistoryItem = history.find(h => h.text.toLowerCase() === item.trim().toLowerCase());
+    });
+
+    const existingHistoryItem = history.find(
+      h => h.text.toLowerCase() === normalized
+    );
+
     if (!existingHistoryItem) {
-      const historyItem = {
-        id: Date.now() + 1,
+      await addDoc(collection(db, "history"), {
         text: item.trim(),
         lastUsed: Date.now()
-      };
-      setHistory([historyItem, ...history]);
+      });
     } else {
-      // Update lastUsed timestamp
-      setHistory(history.map(h => 
-        h.text.toLowerCase() === item.trim().toLowerCase() 
-          ? { ...h, lastUsed: Date.now() }
-          : h
-      ).sort((a, b) => b.lastUsed - a.lastUsed));
+      await updateDoc(doc(db, "history", existingHistoryItem.id), {
+        lastUsed: Date.now()
+      });
     }
-    
+
     setInputValue('');
     inputRef.current?.blur();
   }, [currentList, history]);
 
-  const removeFromList = React.useCallback((id) => {
-    setCurrentList(currentList.filter(item => item.id !== id));
-  }, [currentList]);
+  const removeFromList = React.useCallback(async (id) => {
+    await deleteDoc(doc(db, "currentList", id));
+  }, []);
 
-  const removeFromHistory = React.useCallback((id) => {
-    setHistory(history.filter(item => item.id !== id));
-  }, [history]);
+  const removeFromHistory = React.useCallback(async (id) => {
+    await deleteDoc(doc(db, "history", id));
+  }, []);
 
-  const addFromHistory = React.useCallback((historyItem) => {
-    // Check if item already exists in current list
-    const existingInList = currentList.find(i => i.text.toLowerCase() === historyItem.text.toLowerCase());
+  const addFromHistory = React.useCallback(async (historyItem) => {
+    const existingInList = currentList.find(
+      i => i.text.toLowerCase() === historyItem.text.toLowerCase()
+    );
     if (existingInList) return;
-    
-    const newItem = {
-      id: Date.now(),
+
+    await addDoc(collection(db, "currentList"), {
       text: historyItem.text,
       addedAt: Date.now()
-    };
-    
-    setCurrentList([...currentList, newItem]);
-    
-    // Update lastUsed timestamp
-    setHistory(history.map(h => 
-      h.id === historyItem.id 
-        ? { ...h, lastUsed: Date.now() }
-        : h
-    ).sort((a, b) => b.lastUsed - a.lastUsed));
-  }, [currentList, history]);
+    });
+
+    await updateDoc(doc(db, "history", historyItem.id), {
+      lastUsed: Date.now()
+    });
+  }, [currentList]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
