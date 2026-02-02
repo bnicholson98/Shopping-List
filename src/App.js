@@ -37,7 +37,7 @@ function App() {
 
   useEffect(() => {
     if (!authReady) return;
-    
+
     const listQuery = query(
       collection(db, "currentList"),
       orderBy("addedAt", "asc")
@@ -70,7 +70,7 @@ function App() {
       unsubList();
       unsubHistory();
     };
-  }, []);
+  }, [authReady]);
 
   const addToList = React.useCallback(async (item) => {
     if (item.trim() === '') return;
