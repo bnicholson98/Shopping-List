@@ -10,7 +10,7 @@ import {
   orderBy
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { getAuth, signInAnonymously } from "firebase/auth";
+import { getAuth, signInAnonymously, onAuthStateChanged} from "firebase/auth";
 
 
 function App() {
@@ -19,13 +19,25 @@ function App() {
   const [inputValue, setInputValue] = useState('');
   const [shake, setShake] = useState(false);
   const inputRef = useRef(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     const auth = getAuth();
-    signInAnonymously(auth).catch(console.error);
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        signInAnonymously(auth).catch(console.error);
+      } else {
+        setAuthReady(true);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
+    if (!authReady) return;
+    
     const listQuery = query(
       collection(db, "currentList"),
       orderBy("addedAt", "asc")
