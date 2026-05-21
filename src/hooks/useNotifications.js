@@ -85,18 +85,22 @@ export default function useNotifications() {
         return false;
       }
 
+      // Optimistic — flip immediately once permission is confirmed
+      setIsSubscribed(true);
+      setPreferences(initialPrefs);
+
       const reg = await navigator.serviceWorker.getRegistration();
-      if (!reg) { setError('Service worker not available'); return false; }
+      if (!reg) throw new Error('Service worker not available');
 
       const messaging = getMessaging(app);
       const token = await getToken(messaging, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: reg
       });
-      if (!token) { setError('Could not get push token'); return false; }
+      if (!token) throw new Error('Could not get push token');
 
       const user = auth.currentUser;
-      if (!user) { setError('Not signed in'); return false; }
+      if (!user) throw new Error('Not signed in');
 
       await setDoc(doc(db, 'fcmTokens', user.uid), {
         token,
@@ -105,11 +109,12 @@ export default function useNotifications() {
         ...initialPrefs,
       });
 
-      setPreferences(initialPrefs);
-      setIsSubscribed(true);
       return true;
     } catch (e) {
       console.error('Subscribe failed:', e);
+      // Revert optimistic update
+      setIsSubscribed(false);
+      setPreferences(DEFAULT_PREFS);
       setError(e.message);
       return false;
     } finally {
@@ -118,25 +123,30 @@ export default function useNotifications() {
   }, [isSupported]);
 
   const unsubscribe = useCallback(async () => {
+    const prevPrefs = { ...preferences };
     try {
       setBusy(true);
       setError(null);
+
+      // Optimistic — flip immediately
+      setIsSubscribed(false);
+      setPreferences(DEFAULT_PREFS);
 
       const messaging = getMessaging(app);
       await deleteToken(messaging);
 
       const user = auth.currentUser;
       if (user) await deleteDoc(doc(db, 'fcmTokens', user.uid));
-
-      setIsSubscribed(false);
-      setPreferences(DEFAULT_PREFS);
     } catch (e) {
       console.error('Unsubscribe failed:', e);
+      // Revert optimistic update
+      setIsSubscribed(true);
+      setPreferences(prevPrefs);
       setError(e.message);
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [preferences]);
 
   const updatePreferences = useCallback(async (updates) => {
     const previous = { ...preferences };
