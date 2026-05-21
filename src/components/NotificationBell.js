@@ -84,7 +84,7 @@ export default function NotificationBell() {
   const handleToggleAll = async () => {
     if (!isSubscribed) {
       // Subscribe with both on (DEFAULT_PREFS)
-      await subscribe();
+      await subscribe({ notifyOnAdd: true, notifyOnRemove: true });
     } else if (allOn) {
       // All on → all off → unsubscribe
       await unsubscribe();

@@ -1,81 +1,50 @@
-// @ts-check
 const { test, expect } = require('@playwright/test');
-
-/*
-  Strategy
-  --------
-  We mock browser APIs so the notification bell renders, then inject a
-  *5-second delay* into serviceWorker.getRegistration().
-
-  - With the optimistic-UI fix the toggle flips BEFORE that 5 s call → passes
-    the 500 ms assertion.
-  - Without the fix the toggle waits for the full call chain → times out.
-*/
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
-    /* ── 1. Force standalone display-mode (bypass PWA gate) ── */
-    const _matchMedia = window.matchMedia.bind(window);
+    const _mm = window.matchMedia.bind(window);
     window.matchMedia = (q) => {
-      if (q.includes('standalone')) {
-        return {
-          matches: true, media: q,
-          addEventListener() {}, removeEventListener() {},
-          addListener() {},       removeListener() {},
-          onchange: null, dispatchEvent() { return false; },
-        };
-      }
-      return _matchMedia(q);
+      if (q.includes('standalone'))
+        return { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent() { return false; } };
+      return _mm(q);
     };
 
-    /* ── 2. Mock Notification API ── */
-    // @ts-ignore
-    window.Notification = class MockNotification {
+    window.Notification = class N {
       static permission = 'default';
-      static requestPermission() {
-        MockNotification.permission = 'granted';
-        return Promise.resolve('granted');
-      }
+      static requestPermission() { N.permission = 'granted'; return Promise.resolve('granted'); }
     };
 
-    /* ── 3. Ensure PushManager exists (isSupported check) ── */
-    if (!window.PushManager) window.PushManager = /** @type {any} */ (class {});
+    if (!window.PushManager) window.PushManager = class {};
 
-    /* ── 4. Delay getRegistration by 5 s — the timing wedge ── */
     if (navigator.serviceWorker) {
-      const _getReg = navigator.serviceWorker.getRegistration.bind(
-        navigator.serviceWorker,
-      );
+      const _gr = navigator.serviceWorker.getRegistration.bind(navigator.serviceWorker);
       navigator.serviceWorker.getRegistration = () =>
-        new Promise((resolve) =>
-          setTimeout(() => _getReg().then(resolve, () => resolve(undefined)), 5000),
-        );
+        new Promise(r => setTimeout(() => _gr().then(r, () => r(undefined)), 5000));
     }
   });
 });
 
-test('subscribe toggle flips immediately (optimistic UI)', async ({ page }) => {
+test('clicking All subscribes with every toggle ON', async ({ page }) => {
   await page.goto('/');
 
-  /* Open the notification panel */
   const bell = page.getByRole('button', { name: 'Notification settings' });
   await expect(bell).toBeVisible({ timeout: 10000 });
   await bell.click();
 
-  /* Target the "Item added" toggle by its label text */
-  const toggle = page
-    .locator('label', { hasText: 'Item added' })
-    .locator('[role="switch"]');
+  const allToggle    = page.locator('label', { hasText: 'All' }).locator('[role="switch"]');
+  const addToggle    = page.locator('label', { hasText: 'Item added' }).locator('[role="switch"]');
+  const removeToggle = page.locator('label', { hasText: 'Item checked off' }).locator('[role="switch"]');
 
-  await expect(toggle).toHaveAttribute('aria-checked', 'false');
+  // starts off
+  await expect(allToggle).toHaveAttribute('aria-checked', 'false');
+  await expect(addToggle).toHaveAttribute('aria-checked', 'false');
+  await expect(removeToggle).toHaveAttribute('aria-checked', 'false');
 
-  /* Click to subscribe — the moment of truth */
-  await toggle.click();
+  // one click on All
+  await allToggle.click();
 
-  /*
-    500 ms timeout.  The mocked getRegistration takes 5 000 ms, so:
-      ✔  With optimistic update → flips in < 50 ms   → PASSES
-      ✘  Without it            → blocked for ≥ 5 000 ms → FAILS
-  */
-  await expect(toggle).toHaveAttribute('aria-checked', 'true', { timeout: 500 });
+  // all three must flip on within 500 ms (well before the 5 s SW mock)
+  await expect(allToggle).toHaveAttribute('aria-checked', 'true', { timeout: 500 });
+  await expect(addToggle).toHaveAttribute('aria-checked', 'true', { timeout: 500 });
+  await expect(removeToggle).toHaveAttribute('aria-checked', 'true', { timeout: 500 });
 });
